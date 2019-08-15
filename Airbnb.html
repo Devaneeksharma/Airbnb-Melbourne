@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Airbnb-Melbourne</title>
+    <style>
+        body {
+            background-image: url("pic.png");
+        }
+    </style>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.4.1/jquery.min.js"></script>
+    <link href='https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.5/leaflet.css' rel='stylesheet' type='text/css' />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.5/leaflet-src.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/3.4.9/d3.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/holtzy/D3-graph-gallery@master/LIB/d3.layout.cloud.js"></script>
+    <script src="https://d3js.org/d3.v4.js"></script>
+    <script src="L.D3SvgOverlay.min.js"></script>
+    <script src="Airbnb-js.js"></script>
+</head>
+
+<body onload="loading()">
+    <h1 style="align=center;padding-left:500px"><b>Airbnb Melbourne</b></h1>
+    <h3 style="display:inline; align=left;padding-left:100px">Airbnb Listing Price Across Melbourne</h3>
+    <h3 style="display:inline;align=right;padding-left:450px">Most Popular Words in Airbnb Users Reviews</h3>
+
+    <div style="display:flex">
+        <div id="map" style="width: 50%; height: 625px; display:inline-block;"></div>
+        <!-- this is the id of the map when you hover over the region wordmap and barchart update accordingly-->
+        <div id="barword" style="display:inline-block;width: 40%;">
+            <div id="my_dataviz"></div>
+            <!-- this is the DIv containg the wordcloud have to be moved to right of map-->
+
+            <div class="barchart" id="bar-1"></div>
+        </div>
+    </div>
+    <script>
+        // Loading function    
+        loading = function() {
+            //removing all the element of bar and wordcloud.
+            d3.selectAll("#my_dataviz > *").remove();
+            d3.select("#bar-1").selectAll("svg").remove();
+            // calling for the itnialisation method
+            makebarchart("");
+            wordCloud("");
+            makeLineChart("Melbourne", "Frankston", "Bayside");
+
+        };
+
+        //Code for the bar chart    
+        makebarchart = function(e) {
+            d3.selectAll("#bar-1 > *").remove();
+            var filData;
+            d3.csv("listing.csv", function(data) {
+                if ((e instanceof Object)) {
+                    // getting the data for hovered neighbourhood
+                    filData = data.filter(function(d) {
+                        return d.neighbourhood === e.target.feature.properties.neighbourhood
+                    });
+
+                } else {
+
+                    // getting the melbourne neighbourhood data
+                    filData = data.filter(function(d) {
+                        return d.neighbourhood === "Melbourne"
+                    });
+
+                }
+
+                // getting the data for each paramaters and getting it into the json format.
+                dat = [{
+                    group: "Review score location",
+                    value: filData[0].review_scores_location
+                }, {
+                    group: "Review scores value",
+                    value: filData[0].review_scores_value
+                }, {
+                    group: "Review scores communication",
+                    value: filData[0].review_scores_communication
+                }];
+                // set the dimensions and margins of the graph
+                var margin = {
+                        top: 30,
+                        right: 30,
+                        bottom: 70,
+                        left: 60
+                    },
+                    width = 600 - margin.left - margin.right,
+                    height = 300 - margin.top - margin.bottom;
+
+                // append the svg object to the body of the page
+                var svg = d3.select("#bar-1")
+                    .append("svg")
+                    .attr("width", width + margin.left + margin.right)
+                    .attr("height", height + margin.top + margin.bottom)
+                    .append("g")
+                    .attr("transform",
+                        "translate(" + margin.left + "," + margin.top + ")")
+
+                // add the x axis
+                var x = d3.scaleBand()
+                    .range([0, width])
+                    .domain(dat.map(function(d) {
+                        return d.group;
+                    }))
+                    .padding(0.2);
+                //appending the element g to svg        
+                svg.append("g")
+                    .attr("transform", "translate(0," + height + ")")
+                    .call(d3.axisBottom(x))
+
+                // Add the Y axis
+                var y = d3.scaleLinear()
+                    .domain([0, 10])
+                    .range([height, 0]);
+                //appending the element g to svg         
+                svg.append("g")
+                    .attr("class", "myYaxis")
+                    .call(d3.axisLeft(y));
+
+                // selecting all the rect elements and showing bars on the basis of the color       
+                var u = svg.selectAll("rect")
+                    .data(dat)
+                    .enter()
+                    .append("rect")
+                    .transition()
+                    .duration(1000)
+                    .attr("x", function(d) {
+                        return x(d.group);
+                    })
+                    .attr("y", function(d) {
+                        return y(d.value);
+                    })
+                    .attr("width", x.bandwidth())
+                    .attr("height", function(d) {
+                        return height - y(d.value);
+                    })
+                    .attr("fill", function(d) {
+                        //condition to get the colors for the bars
+                        if (d.group === "Review score location") {
+                            return "lightgreen";
+                        } else if (d.group === "Review scores value") {
+                            return "brown";
+                        } else {
+                            return "#0080ff";
+                        }
+
+                    })
+
+                // setting the text for the bars
+                svg.selectAll(".text")
+                    .data(dat)
+                    .enter()
+                    .append("text")
+                    .attr("class", "label")
+                    .attr("x", (function(d) {
+                        return x(d.group);
+                    })).attr("y", function(d) {
+                        return y(d.value);
+                    })
+                    .attr("dy", ".75em")
+                    .text(function(d) {
+                        return d.value;
+                    })
+                    .attr("text-anchor", "right");
+                //setting the title for the barchart
+                svg.append("text")
+                    .attr("x", (width / 2))
+                    .attr("y", 0 - (margin.top / 2))
+                    .attr("text-anchor", "middle")
+                    .style("font-size", "20px")
+                    .style("text-decoration", "Bold")
+                    .text("Reviews for " + filData[0].neighbourhood);
+
+            });
+        }
+
+        //Code for the word cloud creation
+        wordCloud = function(e) {
+            //reading the json data of words    
+            d3.json("words.json", function(data) {
+                var myWords;
+                // checking the e instance is object or not
+                if ((e instanceof Object)) {
+                    // filtering the data for the hovered area
+                    myWords = data.filter(function(d) {
+                        return d.area === e.target.feature.properties.neighbourhood
+                    });
+
+                } else {
+                    // filtering the data for default case
+                    myWords = data.filter(function(d) {
+                        return d.area === "Melbourne"
+                    });
+
+                }
+                //setting up the margin,width, height    
+                var margin = {
+                        top: 10,
+                        right: 70,
+                        bottom: 10,
+                        left: 10
+                    },
+                    width = 600 - margin.left - margin.right,
+                    height = 400 - margin.top - margin.bottom;
+
+                // append the svg object to the body of the page
+                var svg = d3.select("#my_dataviz").append("svg")
+                    .attr("width", width + margin.left + margin.right)
+                    .attr("height", height + margin.top + margin.bottom)
+                    .append("g")
+                    .attr("transform",
+                        "translate(" + margin.left + "," + margin.top + ")");
+
+                //wordcloud is been create different word cloud feature are here
+                var layout = d3.layout.cloud()
+                    .size([width, height])
+                    .words(myWords.map(function(d) {
+                        return {
+                            text: d.word,
+                            size: d.size
+                        };
+                    }))
+                    .padding(5) //space between words
+                    .rotate(function() {
+                        return ~~(Math.random() * 2) * 90;
+                    })
+                    .fontSize(function(d) {
+                        return d.size;
+                    }) // font size of words
+                    .on("end", draw);
+                layout.start();
+
+                //this fuction take layer above as input and drows the words here, based on the frequency.
+                function draw(words) {
+                    svg
+                        .append("g")
+                        .attr("transform", "translate(" + layout.size()[0] / 2 + "," + layout.size()[1] / 2 + ")")
+                        .selectAll("text")
+                        .data(words)
+                        .enter().append("text")
+                        .style("font-size", function(d) {
+                            return d.size+"px";
+                        })
+                        .style("fill", "#4000ff") //FF8A33
+                        .attr("text-anchor", "middle")
+                        .style("font-family", "Impact")
+                        .attr("transform", function(d) {
+                            return "translate(" + [d.x, d.y] + ")rotate(" + d.rotate + ")";
+                        })
+                        .text(function(d) {
+                            return d.text;
+                        });
+                }
+                return layout;
+            });
+        };
+
+        // creating the new instance of the map
+        var newMap = L.map('map').setView([-37.95807, 145.14722], 9);
+
+        // deciding the layer of it and settif max zoom and min zoom   
+        L.tileLayer('https://api.tiles.mapbox.com/v4/{id}/{z}/{x}/{y}.png?access_token={accessToken}', {
+            id: 'mapbox.light',
+            attribution: '&copy; <a href=”http://osm.org/-37.86453copyright”>OpenStreetMap</a> contributors',
+            accessToken: 'pk.eyJ1Ijoia3Jpc3RpbmhlbnJ5IiwiYSI6ImNqMWdxMjd5aDAwM28zM2xtaGV2azYwcjYifQ.NTJiOqcnhP-_3etf4aZYmQ',
+            maxZoom: 10,
+            minZoom: 9
+        }).addTo(newMap);
+
+        function style(feature) {
+            return {
+                fillColor: getColor(feature.properties.density),
+                weight: 2,
+                opacity: 1,
+                color: 'white',
+                dashArray: '3',
+                fillOpacity: 0.7
+            };
+        }
+
+        //reading the csv data
+        d3.csv("listing.csv", function(data) {
+            neighbourhood = data.map(function(d) {
+                d.price_day = d.price_day;
+                d.neighbourhood = d.neighbourhood;
+                d.min_price = d.min_price;
+                d.max_price = d.max_price;
+                d.listingcount = d.listingcount
+                d.review_scores_value = d.review_scores_value
+                return d;
+
+            });
+
+            // get the color for each price range
+            function getColor(d) {
+
+                for (i = 0; i <= data.length; i++) {
+
+                    if (data[i].neighbourhood === d.properties.neighbourhood) {
+                        return d.price_day > 240 ? '#800026' :
+                            data[i].price_day > 220 ? '#BD0026' :
+                            data[i].price_day > 200 ? '#E31A1C' :
+                            data[i].price_day > 180 ? '#FC4E2A' :
+                            data[i].price_day > 160 ? '#FD8D3C' :
+                            data[i].price_day > 120 ? '#FEB24C' :
+                            data[i].price_day > 80 ? '#FED976' : "black";
+
+                    }
+                };
+
+                //'#FFEDA0';
+            }
+
+            function polystyle(feature) {
+                return {
+                    fillColor: getColor(feature),
+                    weight: 2,
+                    opacity: 1,
+                    color: 'grey', //Outline color
+                    fillOpacity: 0.7
+                };
+            };
+
+            var layerPopup;
+            var poly;
+
+            //featureLayer.on('mouseout', function (e) {
+            //    if (layerPopup && map) {
+            //        map.closePopup(layerPopup);
+            //        layerPopup = null;
+            //    }
+            //});
+
+            var getpopupDetails = function(e) {
+                var strTool;
+                neighbourhood.forEach(function(d) {
+
+                    if (d.neighbourhood == e.target.feature.properties.neighbourhood) {
+                        // console.log(d.neighbourhood)
+                        strTool = "<dl><dt><center>   " + d.neighbourhood + " </center>  </dt>" + "<dd>" + "Total Number of Listing: " + d.listingcount + "</dd>" + "<dd>" + "Minimum Listing price:" + d.min_price + "</dd>" + "<dd>" + "Max Listing price:" + d.price_day + "</dd>" + "<dd>" + "Average reviews:" + d.review_scores_value + "</dd>";
+
+                    }
+                });
+
+                return strTool;
+
+            };
+
+            function zoomToFeature(e) {
+
+                newMap.fitBounds(e.target.getBounds());
+                // var swapped_coordinates = [e.latlng.lat,e.latlng.lng];  //Swap Lat and Lng
+
+                //    if (newMap) {
+                //       layerPopup = L.popup()
+                //           .setLatLng(swapped_coordinates)
+                //           .setContent(getpopupDetails(e))
+                //           .openOn(newMap);
+                //    }
+
+            };
+
+            var creatWordCloud = function(e) {
+
+                d3.selectAll("#my_dataviz > *").remove();
+                wordCloud(e);
+                d3.select("#bar-1").selectAll("svg").remove();
+
+                setTimeout(function() {
+                    makebarchart(e);
+                }, 1000);
+                //    neighbourhood.forEach(function(d){
+                //    
+                //    if(d.neighbourhood==e.target.feature.properties.neighbourhood){
+                //        
+                //        
+                //    }
+                //    });
+
+            };
+
+            var mouseOver = function(e) {
+
+                //console.log(e.LatLng.lat)
+                //var coordinates = e.LatLng.latitude;
+
+                //console.log(coordinates)
+                var swapped_coordinates = [e.latlng.lat + 0.05, e.latlng.lng];
+                if (newMap) {
+                    layerPopup = L.popup()
+                        .setLatLng(swapped_coordinates)
+                        .setContent(getpopupDetails(e))
+                        .openOn(newMap);
+                }
+
+                creatWordCloud(e);
+
+            };
+
+            var mouseOut = function(e) {
+
+                //var objdocument.getElementById("bar-1")
+
+            };
+
+            var onEachFeature = function(feature, layer) {
+                layer.on({
+                    mouseover: mouseOver,
+                    mouseout: mouseOut,
+                    click: zoomToFeature
+                });
+            };
+
+            var getColorLegend = function(d) {
+
+                return d > 240 ? '#800026' :
+                    d > 220 ? '#BD0026' :
+                    d > 200 ? '#E31A1C' :
+                    d > 180 ? '#FC4E2A' :
+                    d > 160 ? '#FD8D3C' :
+                    d > 120 ? '#FEB24C' :
+                    d > 80 ? '#FED976' : "black";
+
+            }
+
+            var legend = L.control({
+                position: 'bottomright'
+            });
+
+            //function add the legend 
+            legend.onAdd = function(newMap) {
+
+                var div = L.DomUtil.create('div', 'info legend'),
+                    priceNeighnourhood = [80, 120, 160, 180, 200, 220, 240]
+                labels = [];
+                div.style.lineHeight = '18px';
+                div.style.color = '#555'
+
+                // loop through our price intervals and generate a label with a colored square for each interval
+                for (var i = 0; i < priceNeighnourhood.length; i++) {
+                    div.innerHTML +=
+                        '<i style="background:' + getColorLegend(priceNeighnourhood[i] + 1) + ';height:18px;width:18px;float:left;margin-right:8px;opacity:0.7;"></i> ' +
+                        priceNeighnourhood[i] + (priceNeighnourhood[i + 1] ? '$ &ndash;' + priceNeighnourhood[i + 1] + '$' + '<br>' : '$ +');
+                }
+                return div;
+            };
+
+            legend.addTo(newMap);
+
+            // loading GeoJSON file to read all the neighbourhood
+            jQuery.getJSON("neighbourhoods.geojson", function(data) {
+                //pasing the geojson file
+                poly = L.geoJson(data, {
+                    style: polystyle,
+                    onEachFeature: onEachFeature
+                }).addTo(newMap);
+            });
+
+        });
+    </script>
+
+    <h2 style="padding-left:400px">Compare Price Among Different Neighbourhood</h2>
+    <h3>Select Dropbox to Compare price among the diffrent neighbourhood:</h3>
+    <div id="linechart"></div>
+    <div id="svgline">
+    </div>
+
+    <script>
+        // code for the line chart  
+        var chart = null;
+        // creating the options for the dropbox    
+        var addoption = function(neighbour, selectList, drop) {
+
+            for (var i = 0; i < neighbour.length; i++) {
+                var option = document.createElement("option");
+                option.value = neighbour[i];
+                option.text = neighbour[i];
+                // selecting the default option for first time display      
+                if (neighbour[i] === "Bayside" && drop === 1) {
+                    option.selected = true;
+                } else if (neighbour[i] === "Frankston" && drop === 2) {
+                    option.selected = true;
+                } else if (neighbour[i] === "Melbourne" && drop === 3) {
+                    option.selected = true;
+                };
+                selectList.appendChild(option);
+
+            }
+        };
+        // creating the select for the line chart div    
+        var myDiv = document.getElementById("linechart");
+        var selectList = document.createElement("select");
+        selectList.id = "mySelect";
+        selectList.onchange = function() {
+            callChart(selectList)
+        };
+        myDiv.appendChild(selectList);
+
+        // creating the select-2 for the line chart div 
+        var selectList1 = document.createElement("select");
+        selectList1.id = "mySelect1";
+        selectList1.onchange = function() {
+            callChart(selectList1)
+        };
+        myDiv.appendChild(selectList1);
+
+        // creating the select-3 for the line chart div     
+        var selectList2 = document.createElement("select");
+        selectList2.id = "mySelect2";
+        selectList2.onchange = function() {
+            callChart(selectList2)
+        };
+        myDiv.appendChild(selectList2);
+
+        // called the append options method for each select here    
+        var child = document.getElementById("linechart").children;
+        d3.csv("listing.csv", function(data) {
+            var neighbourhood = data.map(function(d) {
+                return d.neighbourhood;
+            });
+            addoption(neighbourhood, selectList, 1)
+            addoption(neighbourhood, selectList1, 2)
+            addoption(neighbourhood, selectList2, 3)
+        });
+
+        // getting the parametes of the dropbox    
+        var callChart = function(selopt) {
+            var varOP = [];
+            selList = ["mySelect", "mySelect1", "mySelect2"]
+            selList.forEach(function(d) {
+                console.log(d);
+                varOP.push(document.getElementById(d).value);
+            });
+            //call to the line chart function
+            makeLineChart(varOP[0], varOP[1], varOP[2]);
+        };
+    </script>
+
+</body>
+
+</html>
